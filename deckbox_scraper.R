@@ -2,7 +2,7 @@
 ##   Scrape Deckbox.org Inventory   ##
 ## -------------------------------- ##
 
-## dependencies
+## Dependencies
 library(RCurl); library(xml2); library(rvest)
 library(dplyr)
 
