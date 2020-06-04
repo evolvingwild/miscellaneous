@@ -13,7 +13,7 @@ deckbox_id <- your_deckbox_id   ## replace this with your deckbox.org id (found 
 
 
 ## Scrape data using for loop
-for(i in 1:pages_) { 
+for (i in 1:pages_) { 
   
   print(i)
   

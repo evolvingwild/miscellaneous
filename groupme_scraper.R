@@ -36,10 +36,8 @@ for (i in 1:runs) {
   ## Determine before_id to pass to url
   if (i == 1) { 
     oldest_id <- NULL
-    
     } else {
       oldest_id <- messages_data$response$messages$id[nrow(messages_data$response$messages)]
-      
       }
   
   
@@ -62,23 +60,16 @@ for (i in 1:runs) {
   ## Deal with missing `event` nested data frame (results in an integer(0) object)
   if (identical(which(names(messages_data$response$messages) == "event"), integer(0))) { 
     loop_data_new <- messages_data$response$messages
-    
     } else { 
       loop_data_new <- messages_data$response$messages[, -which(names(messages_data$response$messages) == "event")]
-      
       }
   
   
   ## Bind
   if (i == 1) {
     loop_data_joined <- loop_data_new
-    
     } else { 
-      loop_data_joined <- bind_rows(
-        loop_data_joined, 
-        loop_data_new
-        )
-      
+      loop_data_joined <- bind_rows(loop_data_joined, loop_data_new)
       }
   
   
