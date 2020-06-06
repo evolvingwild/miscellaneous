@@ -131,7 +131,7 @@ loop_data_final$users_mentioned <- unlist(
   )
 
 ## Add additional information that might be useful / cleanup
-loop_data_final_ <- loop_data_final %>% 
+loop_data_final <- loop_data_final %>% 
   mutate(
     ## Handle dates
     date_sent = as.POSIXct(created_at, origin = "1970-01-01"), 
@@ -161,13 +161,16 @@ loop_data_final_ <- loop_data_final %>%
     group_id, platform, message_id = id, created_at, date, time, 
     message_type, user_id, sender_id, name, text, likes_received, liked_by = favorited_by, users_mentioned, image_url, website_linked, 
     sender_type, source_guid, system, 
-    # attachments,  ## data.frame object, cannot add to a sql database
+    attachments, 
     system, avatar_url
     ) %>% 
   arrange(created_at) %>% 
   data.frame()
 
 
+## Data removing non-sql compliant columns (for reference)
+groupme_messages <- loop_data_final %>% 
+  select(-attachments)
 
 
 
@@ -222,6 +225,8 @@ user_messages_compiled <- user_sum_messages %>%
 
 
 
+## Save data as .rds
+# saveRDS(loop_data_final, "data/groupme_scrape_2020-06-03.rds")
 
 
 
