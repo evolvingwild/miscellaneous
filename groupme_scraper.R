@@ -20,7 +20,7 @@ mess_count <- jsonlite::fromJSON(
     api_token
     )
   )
-runs <- ceiling(mess_count$response$count / 100)
+runs <- ceiling(mess_count$response$count / 100); print(runs)
 
 
 ## System sleep
@@ -99,6 +99,13 @@ loop_data_final$likes_received <- unlist(
     )
   )
 
+loop_data_final$favorited_by <- unlist(
+  lapply(
+    loop_data_final$favorited_by, 
+    function(x) paste0(x, collapse = ", ")
+    )
+  )
+
 ## Add message attributes column
 loop_data_final$message_type <- unlist(
   lapply(
@@ -111,7 +118,7 @@ loop_data_final$message_type <- unlist(
 loop_data_final$image_url <- unlist(
   lapply(
     loop_data_final$attachments, 
-    function(x) ifelse(length(x) > 0 & "image" %in% x$type, x$url, NA)
+    function(x) ifelse(length(x) > 0 & ("image" %in% x$type | "linked_image" %in% x$type), x$url, NA)
     )
   )
 
@@ -123,28 +130,45 @@ loop_data_final$users_mentioned <- unlist(
     )
   )
 
-
 ## Add additional information that might be useful / cleanup
-loop_data_final <- loop_data_final %>% 
+loop_data_final_ <- loop_data_final %>% 
   mutate(
+    ## Handle dates
     date_sent = as.POSIXct(created_at, origin = "1970-01-01"), 
+    date = lubridate::date(date_sent), 
+    time = strftime(date_sent, format = "%H:%M:%S"), 
+    ## Determine message type
     message_type = case_when(
+      message_type == "location" ~ "location", 
+      message_type == "video" ~ "video", 
+      message_type == "postprocessing" ~ "unknown", 
+      user_id == "system" | user_id == "calendar" ~ "system", 
       message_type == "mentions" | !is.na(users_mentioned) ~ "mentions", 
       grepl(".gif", image_url) ~ "gif", 
       grepl(".png|.jpeg|", image_url) ~ "image", 
       is.na(message_type) & is.na(image_url) ~ "text", 
       grepl("Created new poll", text) ~ "poll", 
       message_type == "emoji" ~ "text", 
+      grepl("created event", text) ~ "event", 
       TRUE ~ NA_character_
       ), 
-    favorited_by = ifelse(likes_received == 0, NA, favorited_by)
+    favorited_by = ifelse(favorited_by == "", NA, favorited_by), 
+    website_linked = ifelse(grepl("https://|http://", text), stringr::str_extract(text, "(http:\\/\\/|https:\\/\\/)+[a-zA-Z0-9-\\.]+\\/+"), NA), 
+    ## Convert columns for SQL compatibility
+    created_at = as.character(created_at)
     ) %>% 
   select(
-    group_id, platform, id, created_at, date_sent, 
-    message_type, user_id, sender_id, name, text, likes_received, favorited_by, users_mentioned, image_url, 
-    sender_type, source_guid, system, attachments, system, avatar_url
+    group_id, platform, message_id = id, created_at, date, time, 
+    message_type, user_id, sender_id, name, text, likes_received, liked_by = favorited_by, users_mentioned, image_url, website_linked, 
+    sender_type, source_guid, system, 
+    # attachments,  ## data.frame object, cannot add to a sql database
+    system, avatar_url
     ) %>% 
+  arrange(created_at) %>% 
   data.frame()
+
+
+
 
 
 
@@ -182,17 +206,6 @@ user_sum_likes_received <- loop_data_final %>%
   data.frame()
 
 
-## Sum total links a user has submitted to the group
-user_sum_links_posted <- loop_data_final %>% 
-  filter(grepl("https://|http://", text)) %>% 
-  mutate(url_check = stringr::str_extract(text, "(http:\\/\\/|https:\\/\\/)+[a-zA-Z\\.]*\\.+[a-z]+\\/+")) %>% 
-  filter(!is.na(url_check)) %>% 
-  mutate(link_count = 1) %>% 
-  group_by(user_id) %>% 
-  summarise(link_count = sum(link_count)) %>% 
-  data.frame()
-
-
 ## Join all above dataframes
 user_messages_compiled <- user_sum_messages %>% 
   left_join(
@@ -203,17 +216,9 @@ user_messages_compiled <- user_sum_messages %>%
     user_sum_likes_received, 
     by = "user_id"
     ) %>% 
-  left_join(
-    user_sum_links_posted, 
-    by = "user_id"
-    ) %>% 
-  mutate(
-    likes_per_message = round(likes_received / messages_sent, 2), 
-    link_count = ifelse(is.na(link_count), 0, link_count), 
-    link_perc = round(100 * link_count / messages_sent, 2)
-    ) %>% 
-  select(-c(link_count, link_perc)) %>%  ## removing for display purposes
-  filter(messages_sent > 10)             ## quick message cutoff 
+  mutate(likes_per_message = round(likes_received / messages_sent, 2)) %>% 
+  arrange(desc(messages_sent)) %>% 
+  filter(messages_sent > 1000)  ## quick message cutoff 
 
 
 
